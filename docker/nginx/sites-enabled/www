@@ -1,0 +1,137 @@
+proxy_cache_path /data/cache/www levels=1:2 keys_zone=www:5000m inactive=1h max_size=20000m;
+proxy_cache_path /data/cache/site levels=1:2 keys_zone=site:5000m inactive=1h max_size=20000m;
+server {
+	listen       80;
+	server_name  www.yunke.com yunke.com;
+	add_header Strict-Transport-Security "max-age=31536000; includeSubdomains";
+	add_header X-Frame-Options SAMEORIGIN;
+
+	root /data/www/www;
+
+	index  index.php;
+	# Make site accessible from http://localhost/
+	#access_log /data/log/nginx_access.www.log main;
+	access_log off;
+
+	location / {
+		proxy_pass http://127.0.0.1:91/;
+
+		proxy_cache_methods  GET HEAD POST;
+
+		add_header X-Backend-Server $hostname;
+		add_header X-Cache-Status $upstream_cache_status;
+		proxy_set_header Host      $host;
+		proxy_set_header        X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_cache www;
+		proxy_no_cache $arg_ykcache;
+		proxy_cache_revalidate on;
+		proxy_cache_use_stale error timeout invalid_header updating http_500 http_502 http_503 http_504;
+		proxy_cache_key "$scheme$host$uri|$is_args|$args|$request_method|$request_body|$cookie_language";
+
+	}
+	location ~* \/(assets|assets_v2) {
+		add_header X-Cache-Status $upstream_cache_status;
+		proxy_pass http://127.0.0.1:91;
+		proxy_cache_valid 200 1h;
+		expires 604800;
+		proxy_cache www;
+		proxy_cache_use_stale error timeout invalid_header updating http_500 http_502 http_503 http_504;
+		proxy_cache_key "$scheme$host$uri|$is_args|$args|$cookie_language";
+	}
+	#location  /files/pc/ {
+	#	rewrite ^/files/pc/(.+?)$ https://download.yunke.com/pc/files/$1 last;
+	#}
+
+	#解决17版本不支付302下载的问题
+	location  /files/pc/ {
+		alias /data/download/pc/files/;
+	}
+}
+
+server {
+	listen 127.0.0.1:91;
+
+	root /data/www/www;
+
+	index  index.php;
+	access_log off;
+	location / {
+
+		root   /data/www/www;
+		index  index.php;
+		if (!-e $request_filename){
+			rewrite ^/(.+?)$ /index.php last;
+		}
+	}
+	location ~ \.php$ {
+		fastcgi_param REMOTE_ADDR $http_x_real_ip;
+		fastcgi_pass   127.0.0.1:9000;
+		fastcgi_index  index.php;
+		fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+		include        fastcgi_params;
+	}
+}
+
+
+
+
+
+
+server {
+	listen   80 default_server;
+
+	index  site.php;
+	server_name *.yunke.com;
+	root /data/www/www;
+
+	#access_log /data/log/nginx_access.site.log main;
+	access_log off;
+	location / {
+		proxy_pass http://127.0.0.1:92/;
+
+		proxy_cache_methods  GET HEAD POST;
+
+		add_header X-Cache-Status $upstream_cache_status;
+		add_header X-Backend-Server $hostname;
+		proxy_set_header Host      $host;
+		proxy_set_header        X-Forwarded-For $proxy_add_x_forwarded_for;
+		proxy_cache site;
+		proxy_no_cache $arg_nocache;
+		proxy_cache_revalidate on;
+		proxy_cache_use_stale error timeout invalid_header updating http_500 http_502 http_503 http_504;
+		proxy_cache_key "$scheme$host$uri|$is_args|$args|$request_method|$request_body|$cookie_language";
+
+	}
+	location ~* \/(assets|assets_v2) {
+		add_header X-Cache-Status $upstream_cache_status;
+		proxy_pass http://127.0.0.1:92;
+		proxy_cache_valid 200 1h;
+		expires 604800;
+		proxy_cache site;
+		proxy_cache_use_stale error timeout invalid_header updating http_500 http_502 http_503 http_504;
+		proxy_cache_key "$scheme$host$uri|$is_args|$args|$cookie_language";
+	}
+}	
+server {
+	listen 127.0.0.1:92;
+
+	root /data/www/www;
+
+	index  site.php;
+	access_log off;
+	location / {
+
+		root   /data/www/www;
+		index  site.php;
+		if (!-e $request_filename){
+			rewrite ^/(.+?)$ /site.php last;
+		}
+	}
+	location ~ \.php$ {
+		fastcgi_param REMOTE_ADDR $http_x_real_ip;
+		fastcgi_pass   127.0.0.1:9000;
+		fastcgi_index  site.php;
+		fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+		include        fastcgi_params;
+	}
+}

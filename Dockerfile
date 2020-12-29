@@ -11,3 +11,15 @@ RUN buildDeps='nginx php7-fpm php7-imap php7-mbstring php7-json php7-common php7
     && mkdir -p /data/www
 
 WORKDIR /data/www/
+COPY docker/start.sh start.sh
+COPY docker/nginx/nginx.conf /etc/nginx/
+COPY docker/nginx/sites-enabled/* /etc/nginx/sites-enabled/
+COPY docker/fpm/php.ini /etc/php7/php.ini
+COPY docker/fpm/php-fpm.conf /etc/php7/php-fpm.conf
+COPY docker/fpm/pool.d/www.conf /etc/php7/php-fpm.d/www.conf
+RUN ln -sf /dev/stdout /var/log/nginx/access.log && ln -sf /dev/stderr /var/log/nginx/error.log
+
+HEALTHCHECK --interval=5s --timeout=5s --retries=3 \
+    CMD ps aux | grep "php-fpm:" | grep -v "grep" > /dev/null; if [ 0 != $? ]; then exit 1; fi
+EXPOSE 80
+CMD ["/bin/sh","/data/www/start.sh"]
